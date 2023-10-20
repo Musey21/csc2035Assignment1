@@ -138,7 +138,16 @@ public class Client {
 	 * outputFile: is the name of the file that the server will create
 	*/
 	public void sendMetaData(int portNumber, InetAddress IPAddress, File file, String outputFile) throws IOException {
-	exitErr("sendFileNormal is not implemented");
+		MetaData metaData = new MetaData("inpput.txt",789,);
+
+		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+		ObjectOutputStream objectStream = new ObjectOutputStream(outputStream);
+		objectStream.writeObject(metaData);
+
+		byte[] data = outputStream.toByteArray();
+		DatagramPacket sentPacket = new DatagramPacket(data, data.length, IPAddress, portNumber);
+		socket.send(sentPacket);
+	}
 
 
 	/* TODO: Send the file to the server without corruption*/
