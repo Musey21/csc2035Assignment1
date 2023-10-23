@@ -5,8 +5,14 @@ import java.util.Scanner;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
 
+
 public class Client {
 	DatagramSocket socket;
+
+	public Client() throws SocketException {
+		socket = new DatagramSocket();
+	}
+
 	static final int RETRY_LIMIT = 4;	/* 
 	 * UTILITY METHODS PROVIDED FOR YOU 
 	 * Do NOT edit the following functions:
@@ -138,7 +144,9 @@ public class Client {
 	 * outputFile: is the name of the file that the server will create
 	*/
 	public void sendMetaData(int portNumber, InetAddress IPAddress, File file, String outputFile) throws IOException {
-		MetaData metaData = new MetaData("inpput.txt",789,);
+		MetaData metaData = new MetaData();
+		metaData.setName(file.getName()); // set the name to the name of the file
+		metaData.setSize((int) file.length()); // set the size to the length of the file
 
 		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 		ObjectOutputStream objectStream = new ObjectOutputStream(outputStream);
@@ -147,6 +155,12 @@ public class Client {
 		byte[] data = outputStream.toByteArray();
 		DatagramPacket sentPacket = new DatagramPacket(data, data.length, IPAddress, portNumber);
 		socket.send(sentPacket);
+
+		System.out.println("SENDER: Meta data is sent: (file name, size): ( "+ metaData.getName()+", " + metaData.getSize()+")");
+		System.out.println("------------------------------------------------------------------");
+		System.out.println("------------------------------------------------------------------");
+
+
 	}
 
 
