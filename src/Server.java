@@ -213,11 +213,12 @@ public class Server {
 
 		int currentTotal =0;
 		byte[] incomingData = new byte[1024];
-		Segment dataSeg = new Segment();
+		Segment dataSeg = null; // Initialize dataSeg as null
+		int expextedSq = 0;
+
 
 		/* while still receiving segments */
 		while (currentTotal < totalBytes) {
-			System.out.println(currentTotal);
 			DatagramPacket incomingPacket = new DatagramPacket(incomingData, incomingData.length);
 			//receive from the client
 			socket.receive(incomingPacket);
@@ -234,6 +235,7 @@ public class Server {
 			} catch (ClassNotFoundException e) {
 				e.printStackTrace();
 			}
+
 
 
 			InetAddress IPAddress = incomingPacket.getAddress();
@@ -260,32 +262,44 @@ public class Server {
 				boolean resultIsLoss = server.isLost(loss);
 
 				// If isLoss = false send normally
-				if (resultIsLoss == false){
+				if (!resultIsLoss){
 					socket.send(replyPacket);
 					System.out.println("\t\t>>>>>>> NETWORK: ACK is sent successfully <<<<<<<<<");
-				}
+					// write the payload of the data segment to output file
+					myWriter.write(dataSeg.getPayLoad());
+					currentTotal = currentTotal + dataSeg.getSize();
+					expextedSq ++; // Increments the expected sq number
 
-
-				/* write the payload of the data segment to output file */
-				myWriter.write(dataSeg.getPayLoad());
-				currentTotal = currentTotal + dataSeg.getSize();
-
-				if (resultIsLoss){
+					System.out.println("------------------------------------------------");
+					System.out.println("------------------------------------------------");
+				}else {
 					String ANSI_RED = "\u001B[31m";
 					String ANSI_RESET = "\u001B[0m";
-					System.out.println(ANSI_RED + "\t\t>>>>>>> NETWORK: ACK is corrupted! <<<<<<<<<" + ANSI_RESET );
-					currentTotal = currentTotal - dataSeg.getSize();
+					System.out.println(ANSI_RED + "\t\t>>>>>>> NETWORK: ACK is corrupted! <<<<<<<<<");
+					System.out.println("************************************************");
+					System.out.println("************************************************"  + ANSI_RESET);
 				}
-				System.out.println("------------------------------------------------");
-				System.out.println("------------------------------------------------");
 
 			}
-			else
-			{
+			else{
 				System.out.println("SERVER: Calculated checksum is " + x + "  INVALID");
 				System.out.println("SERVER: Not sending any ACK ");
 				System.out.println("*************************** ");
+
+				// Duplicate segment received, send an ACK for the previous expected sequence number
+				Segment ackSeg = new Segment();
+				ackSeg.setSq(expextedSq - 1); // ACK for the previous sequence number
+				ackSeg.setType(SegmentType.Ack);
+
+				ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+				ObjectOutputStream os = new ObjectOutputStream(outputStream);
+				os.writeObject(ackSeg);
+				byte[] dataAck = outputStream.toByteArray();
+				DatagramPacket replyPacket = new DatagramPacket(dataAck, dataAck.length, IPAddress, port);
+				socket.send(replyPacket);
+				System.out.println("SERVER: Sending an ACK for the previous sq " + ackSeg.getSq());
 			}
+
 
 		}
 

@@ -191,7 +191,7 @@ public class Client {
 			segment.setPayLoad(new String(segmentData));
 
 			//Calculate checksum
-			int calculatedChecksum = checksum(new String(segmentData), true);
+			int calculatedChecksum = checksum(new String(segmentData), false);
 			segment.setChecksum(calculatedChecksum);
 
 			// Create a ByteArrayOutputStream to hold the serialized object
@@ -256,98 +256,101 @@ public class Client {
 	/* TODO: This function is essentially the same as the sendFileNormal function
 	 *      except that it resends data segments if no ACK for a segment is
 	 *      received from the server.*/
-	public void sendFileWithTimeOut(int portNumber, InetAddress IPAddress, File file, float loss) throws IOException {
-		DatagramSocket socket = new DatagramSocket();
+	public void sendFileWithTimeOut(int portNumber, InetAddress IPAddress, File file, float loss) {
+		try {
+			DatagramSocket socket = new DatagramSocket();
 
-		// Calls isCorrupted
-		Client client = new Client();
-
-
-
-		// Reading the file content as byte array
-		byte[] fileContent = Files.readAllBytes(file.toPath());
-
-		// Create segments and send them
-		int segmentSize = 4;
-		for (int i = 0; i < fileContent.length; i += segmentSize) {
-			byte[] segmentData = Arrays.copyOfRange(fileContent, i, Math.min(i + segmentSize, fileContent.length));
-
-			// Create a segment object
-			Segment segment = new Segment();
-			segment.setSize(segmentData.length);
-			segment.setSq(i / segmentSize);
-			segment.setType(SegmentType.Data);
-			segment.setPayLoad(new String(segmentData));
-
-			boolean resultIsCorrupted = client.isCorrupted(loss);
-			//Calculate checksum
-			int calculatedChecksum = checksum(new String(segmentData), resultIsCorrupted);
-			segment.setChecksum(calculatedChecksum);
+			// Calls isCorrupted
+			Client client = new Client();
 
 
-			// Create a ByteArrayOutputStream to hold the serialized object
-			ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-			// Create an ObjectOutputStream to write objects to the ByteArrayOutputStream
-			ObjectOutputStream objectStream = new ObjectOutputStream(outputStream);
-			// Write the segment object to the ObjectOutputStream
-			objectStream.writeObject(segment);
+			// Reading the file content as byte array
+			byte[] fileContent = Files.readAllBytes(file.toPath());
 
-			// Convert the data in the ByteArrayOutputStream to a byte array
-			byte[] data = outputStream.toByteArray();
-			// Create a DatagramPacket to be sent over the network
-			DatagramPacket sentPacket = new DatagramPacket(data, data.length, IPAddress, portNumber);
-			// Send the packet through the socket
-			socket.send(sentPacket);
+			// Create segments and send them
+			int segmentSize = 4;
+			for (int i = 0; i < fileContent.length; i += segmentSize) {
+				byte[] segmentData = Arrays.copyOfRange(fileContent, i, Math.min(i + segmentSize, fileContent.length));
 
-			// Print the segment information that has been sent
-			//System.out.println("SENDER: Segment is sent: (segment number, size): (" + segment.getSq() + ", " + segment.getSize() + ")");
-			System.out.println("SENDER: Segment sent:(" + segment.getPayLoad() + "), segment number:"+segment.getSq()+", Checksum:"+ segment.getChecksum());
+				// Create a segment object
+				Segment segment = new Segment();
+				segment.setSize(segmentData.length);
+				segment.setSq(i / segmentSize);
+				segment.setType(SegmentType.Data);
+				segment.setPayLoad(new String(segmentData));
 
-			if (resultIsCorrupted){
-				String ANSI_RED = "\u001B[31m";
-				String ANSI_RESET = "\u001B[0m";
-				System.out.println(ANSI_RED + "\t\t>>>>>>>Network ERROR: segment checksum is corrupted!<<<<<<<<<");
-				System.out.println("SENDER: Sending segment: sq:" + segment.getSq() + " size:" + segment.getSize() + " checksum:" + segment.getChecksum() + "content(" + segment.getPayLoad() + ")" + ANSI_RESET);
-			}
-			System.out.println("SENDER: Waiting for ack");
+				boolean resultIsCorrupted = client.isCorrupted(loss);
+				//Calculate checksum
+				int calculatedChecksum = checksum(new String(segmentData), resultIsCorrupted);
+				segment.setChecksum(calculatedChecksum);
 
-			byte[] receiveData = new byte[1024];
-			DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
 
-			socket.setSoTimeout(1000);
+				// Create a ByteArrayOutputStream to hold the serialized object
+				ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+				// Create an ObjectOutputStream to write objects to the ByteArrayOutputStream
+				ObjectOutputStream objectStream = new ObjectOutputStream(outputStream);
+				// Write the segment object to the ObjectOutputStream
+				objectStream.writeObject(segment);
 
-			try{
-				socket.receive(receivePacket);
-				// Deserialize the received acknowledgment message
-				ObjectInputStream objectInputStream = new ObjectInputStream(new ByteArrayInputStream(receivePacket.getData()));
-				Segment receivedSegment = (Segment) objectInputStream.readObject();
+				// Convert the data in the ByteArrayOutputStream to a byte array
+				byte[] data = outputStream.toByteArray();
+				// Create a DatagramPacket to be sent over the network
+				DatagramPacket sentPacket = new DatagramPacket(data, data.length, IPAddress, portNumber);
+				// Send the packet through the socket
+				socket.send(sentPacket);
 
-				// Extract the acknowledgment type and sequence number from the received segment
-				SegmentType ackType = receivedSegment.getType();
-				int ackSq = receivedSegment.getSq();
+				// Print the segment information that has been sent
+				//System.out.println("SENDER: Segment is sent: (segment number, size): (" + segment.getSq() + ", " + segment.getSize() + ")");
+				System.out.println("SENDER: Segment sent:(" + segment.getPayLoad() + "), segment number:" + segment.getSq() + ", Checksum:" + segment.getChecksum());
 
-				System.out.println(ackType + " " + ackSq);
-				// Compare the acknowledgment type and sequence number with the expected values
-				if (ackType == SegmentType.Ack && ackSq == segment.getSq()) {
-					System.out.println("SENDER: ACK for segment " + segment.getSq() + " received.");
-				} else {
-					System.out.println("SENDER: Unexpected ACK received.");
+				if (resultIsCorrupted) {
+					String ANSI_RED = "\u001B[31m";
+					String ANSI_RESET = "\u001B[0m";
+					System.out.println(ANSI_RED + "\t\t>>>>>>>Network ERROR: segment checksum is corrupted!<<<<<<<<<");
+					System.out.println("SENDER: Sending segment: sq:" + segment.getSq() + " size:" + segment.getSize() + " checksum:" + segment.getChecksum() + " content(" + segment.getPayLoad() + ")" + ANSI_RESET);
+				}
+				System.out.println("SENDER: Waiting for ack");
+
+				byte[] receiveData = new byte[1024];
+				DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+
+				socket.setSoTimeout(500);
+
+				try {
+					socket.receive(receivePacket);
+					// Deserialize the received acknowledgment message
+					ObjectInputStream objectInputStream = new ObjectInputStream(new ByteArrayInputStream(receivePacket.getData()));
+					Segment receivedSegment = (Segment) objectInputStream.readObject();
+
+					// Extract the acknowledgment type and sequence number from the received segment
+					SegmentType ackType = receivedSegment.getType();
+					int ackSq = receivedSegment.getSq();
+
+					System.out.println(ackType + " " + ackSq);
+					// Compare the acknowledgment type and sequence number with the expected values
+					if (ackType == SegmentType.Ack && ackSq == segment.getSq()) {
+						System.out.println("SENDER: ACK for segment " + segment.getSq() + " received.");
+					} else {
+						System.out.println("SENDER: Unexpected ACK received.");
+					}
+
+				} catch (SocketTimeoutException e) {
+					System.out.println("SENDER: Timeout occurred. Resending segment " + segment.getSq());
+					// Resends segment
+					i -= segmentSize;
+
+				} catch (ClassNotFoundException e) {
+					throw new RuntimeException(e);
 				}
 
-			}catch (SocketTimeoutException e){
-				System.out.println("SENDER: Timeout occurred. Resending segment " + segment.getSq());
-				// Resends segment
-				i -= segmentSize;
-
-			} catch (ClassNotFoundException e) {
-				throw new RuntimeException(e);
+				//System.out.println("SENDER: ACK sq = " + segment.getSq() + " RECIEVED");
+				System.out.println("------------------------------------------------------------------");
 			}
-
-			//System.out.println("SENDER: ACK sq = " + segment.getSq() + " RECIEVED");
-			System.out.println("------------------------------------------------------------------");
+		}catch (IOException e){
+			e.printStackTrace();
+			exitErr("IO exception");
 		}
 	}
-
 
 }
 
