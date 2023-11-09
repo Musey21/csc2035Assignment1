@@ -209,12 +209,15 @@ public class Server {
 	 */
 	public void receiveFileWithAckLost(float loss) throws IOException{
 		FileWriter myWriter = new FileWriter(outputFileName);
+		Server server = new Server();
+
 		int currentTotal =0;
 		byte[] incomingData = new byte[1024];
 		Segment dataSeg = new Segment();
 
 		/* while still receiving segments */
 		while (currentTotal < totalBytes) {
+			System.out.println(currentTotal);
 			DatagramPacket incomingPacket = new DatagramPacket(incomingData, incomingData.length);
 			//receive from the client
 			socket.receive(incomingPacket);
@@ -254,14 +257,25 @@ public class Server {
 				byte[] dataAck = outputStream.toByteArray();
 				DatagramPacket replyPacket = new DatagramPacket(dataAck, dataAck.length, IPAddress, port);
 
-				/* Send the Ack segment */
-				socket.send(replyPacket);
+				boolean resultIsLoss = server.isLost(loss);
+
+				// If isLoss = false send normally
+				if (resultIsLoss == false){
+					socket.send(replyPacket);
+					System.out.println("\t\t>>>>>>> NETWORK: ACK is sent successfully <<<<<<<<<");
+				}
+
 
 				/* write the payload of the data segment to output file */
 				myWriter.write(dataSeg.getPayLoad());
 				currentTotal = currentTotal + dataSeg.getSize();
 
-				System.out.println("\t\t>>>>>>> NETWORK: ACK is sent successfully <<<<<<<<<");
+				if (resultIsLoss){
+					String ANSI_RED = "\u001B[31m";
+					String ANSI_RESET = "\u001B[0m";
+					System.out.println(ANSI_RED + "\t\t>>>>>>> NETWORK: ACK is corrupted! <<<<<<<<<" + ANSI_RESET );
+					currentTotal = currentTotal - dataSeg.getSize();
+				}
 				System.out.println("------------------------------------------------");
 				System.out.println("------------------------------------------------");
 
